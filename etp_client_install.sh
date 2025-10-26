@@ -10,6 +10,7 @@ SERVER_PORT="9527"
 SECRET_KEY="okx-market-sentry-2025-secret"
 INSTALL_DIR="/opt/etp"
 SERVICE_NAME="etp-client"
+LOG_FILE="/tmp/etp-client.log"
 
 echo "🚀 开始安装 ETP 客户端..."
 
@@ -47,9 +48,10 @@ EOF
 # 设置权限
 chmod +x etpc
 
-# 创建 systemd 服务
-echo "🔧 创建系统服务..."
-cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
+# 检测是否有systemd
+if command -v systemctl >/dev/null 2>&1; then
+    echo "🔧 创建系统服务..."
+    cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
 Description=ETP Client Service
 After=network.target
@@ -66,20 +68,44 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# 启动服务
-systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl start ${SERVICE_NAME}
+    systemctl daemon-reload
+    systemctl enable ${SERVICE_NAME}
+    systemctl start ${SERVICE_NAME}
 
-echo ""
-echo "✅ ETP 客户端安装完成！"
-echo ""
-echo "📍 安装目录: $INSTALL_DIR"
-echo "🔗 服务器地址: $SERVER_ADDR:$SERVER_PORT"
-echo ""
-echo "常用命令:"
-echo "  查看状态: systemctl status ${SERVICE_NAME}"
-echo "  查看日志: journalctl -u ${SERVICE_NAME} -f"
-echo "  重启服务: systemctl restart ${SERVICE_NAME}"
-echo "  停止服务: systemctl stop ${SERVICE_NAME}"
+    echo ""
+    echo "✅ ETP 客户端安装完成！"
+    echo ""
+    echo "📍 安装目录: $INSTALL_DIR"
+    echo "🔗 服务器地址: $SERVER_ADDR:$SERVER_PORT"
+    echo ""
+    echo "常用命令:"
+    echo "  查看状态: systemctl status ${SERVICE_NAME}"
+    echo "  查看日志: journalctl -u ${SERVICE_NAME} -f"
+    echo "  重启服务: systemctl restart ${SERVICE_NAME}"
+    echo "  停止服务: systemctl stop ${SERVICE_NAME}"
+else
+    echo "🐳 检测到容器环境，使用后台运行模式..."
+    
+    # 停止旧进程
+    pkill -f "$INSTALL_DIR/etpc" 2>/dev/null || true
+    
+    # 后台启动
+    nohup $INSTALL_DIR/etpc > $LOG_FILE 2>&1 &
+    PID=$!
+    
+    echo ""
+    echo "✅ ETP 客户端安装完成！"
+    echo ""
+    echo "📍 安装目录: $INSTALL_DIR"
+    echo "🔗 服务器地址: $SERVER_ADDR:$SERVER_PORT"
+    echo "🆔 进程ID: $PID"
+    echo "📄 日志文件: $LOG_FILE"
+    echo ""
+    echo "常用命令:"
+    echo "  查看日志: tail -f $LOG_FILE"
+    echo "  查看进程: ps aux | grep etpc"
+    echo "  停止服务: pkill -f etpc"
+    echo "  重启服务: pkill -f etpc && cd $INSTALL_DIR && nohup ./etpc > $LOG_FILE 2>&1 &"
+fi
+
 echo ""
