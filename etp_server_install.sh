@@ -9,6 +9,7 @@ BIND_PORT="9527"
 SECRET_KEY="okx-market-sentry-2025-secret"
 INSTALL_DIR="/opt/etp"
 SERVICE_NAME="etp-server"
+LOG_FILE="/tmp/etp-server.log"
 
 echo "🚀 开始安装 ETP 服务端..."
 
@@ -66,9 +67,10 @@ EOF
 # 设置权限
 chmod +x etps
 
-# 创建 systemd 服务
-echo "🔧 创建系统服务..."
-cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
+# 检测是否有systemd
+if command -v systemctl >/dev/null 2>&1; then
+    echo "🔧 创建系统服务..."
+    cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
 Description=ETP Server Service
 After=network.target
@@ -85,26 +87,56 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# 启动服务
-systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl start ${SERVICE_NAME}
+    systemctl daemon-reload
+    systemctl enable ${SERVICE_NAME}
+    systemctl start ${SERVICE_NAME}
 
-echo ""
-echo "✅ ETP 服务端安装完成！"
-echo ""
-echo "📍 安装目录: $INSTALL_DIR"
-echo "🔗 监听端口: $BIND_PORT"
-echo "🔑 密钥: $SECRET_KEY"
-echo ""
-echo "映射端口:"
-echo "  SSH:   22 → 2222"
-echo "  Redis: 6379 → 6380"
-echo "  HTTP:  80 → 8080"
-echo ""
-echo "常用命令:"
-echo "  查看状态: systemctl status ${SERVICE_NAME}"
-echo "  查看日志: journalctl -u ${SERVICE_NAME} -f"
-echo "  重启服务: systemctl restart ${SERVICE_NAME}"
-echo "  停止服务: systemctl stop ${SERVICE_NAME}"
+    echo ""
+    echo "✅ ETP 服务端安装完成！"
+    echo ""
+    echo "📍 安装目录: $INSTALL_DIR"
+    echo "🔗 监听端口: $BIND_PORT"
+    echo "🔑 密钥: $SECRET_KEY"
+    echo ""
+    echo "映射端口:"
+    echo "  SSH:   22 → 2222"
+    echo "  Redis: 6379 → 6380"
+    echo "  HTTP:  80 → 8080"
+    echo ""
+    echo "常用命令:"
+    echo "  查看状态: systemctl status ${SERVICE_NAME}"
+    echo "  查看日志: journalctl -u ${SERVICE_NAME} -f"
+    echo "  重启服务: systemctl restart ${SERVICE_NAME}"
+    echo "  停止服务: systemctl stop ${SERVICE_NAME}"
+else
+    echo "🐳 检测到容器环境，使用后台运行模式..."
+    
+    # 停止旧进程
+    pkill -f "$INSTALL_DIR/etps" 2>/dev/null || true
+    
+    # 后台启动
+    nohup $INSTALL_DIR/etps > $LOG_FILE 2>&1 &
+    PID=$!
+    
+    echo ""
+    echo "✅ ETP 服务端安装完成！"
+    echo ""
+    echo "📍 安装目录: $INSTALL_DIR"
+    echo "🔗 监听端口: $BIND_PORT"
+    echo "🔑 密钥: $SECRET_KEY"
+    echo "🆔 进程ID: $PID"
+    echo "📄 日志文件: $LOG_FILE"
+    echo ""
+    echo "映射端口:"
+    echo "  SSH:   22 → 2222"
+    echo "  Redis: 6379 → 6380"
+    echo "  HTTP:  80 → 8080"
+    echo ""
+    echo "常用命令:"
+    echo "  查看日志: tail -f $LOG_FILE"
+    echo "  查看进程: ps aux | grep etps"
+    echo "  停止服务: pkill -f etps"
+    echo "  重启服务: pkill -f etps && cd $INSTALL_DIR && nohup ./etps > $LOG_FILE 2>&1 &"
+fi
+
 echo ""
